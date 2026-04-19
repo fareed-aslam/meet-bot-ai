@@ -1,0 +1,16 @@
+{
+    "name": "chat-reset-lambda",
+    "version": "1.0.0",
+    "type": "module",
+    "dependencies": {
+        "@prisma/adapter-pg": "7.3.0",
+        "@prisma/client": "7.3.0",
+        "pg": "^8.16.0"
+    },
+    "devDependencies": {
+        "prisma": "7.3.0"
+    },
+    "scripts": {
+        "generate": "prisma generate"
+    }
+}
