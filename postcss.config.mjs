@@ -1,4 +1,5 @@
 const config = {
+  //acha
   plugins: {
     "@tailwindcss/postcss": {},
   },
