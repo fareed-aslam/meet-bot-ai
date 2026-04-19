@@ -6,9 +6,18 @@ It also supports a Slack integration (OAuth + posting summaries/action items int
 
 ## Screenshot
 
-Add your screenshot to `public/readme/hero.png` and it will render here:
+Projects Snaps.........
 
 <img width="1493" height="875" alt="pic1" src="https://github.com/user-attachments/assets/e69e9687-c7be-43a3-8046-ad92b6198163" />
+<img width="1148" height="685" alt="slack1" src="https://github.com/user-attachments/assets/2fd860f5-f9ac-4716-a79c-aea74c7f17ef" />
+<img width="1816" height="791" alt="slack2" src="https://github.com/user-attachments/assets/f446eb04-7e0f-4d60-8dc6-6c4da0245b3e" />
+<img width="1825" height="806" alt="slack3" src="https://github.com/user-attachments/assets/bb7c66ea-2cd3-4502-ba84-55cb03d77be1" />
+<img width="1889" height="896" alt="image" src="https://github.com/user-attachments/assets/513e6d4d-89c4-43bb-a4d1-20b5988a27cc" />
+<img width="1166" height="866" alt="image" src="https://github.com/user-attachments/assets/0464ea40-cd19-40fc-bac5-238f06a06b40" />
+<img width="1754" height="910" alt="image" src="https://github.com/user-attachments/assets/f1cda024-3b7f-4a7b-b3c6-9d4067b260db" />
+<img width="1545" height="763" alt="image" src="https://github.com/user-attachments/assets/6ae7dae7-2b0f-4b6b-8e89-6989ad82d262" />
+<img width="1485" height="929" alt="image" src="https://github.com/user-attachments/assets/0468f0b2-7b93-42a4-8b01-d73c864fae9d" />
+
 
 
 
