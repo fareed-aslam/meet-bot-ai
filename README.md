@@ -8,7 +8,8 @@ It also supports a Slack integration (OAuth + posting summaries/action items int
 
 Add your screenshot to `public/readme/hero.png` and it will render here:
 
-![Meet Bot Hero](./public/readme/hero.png)
+![Meet Bot Hero](<img width="1493" height="875" alt="image" src="https://github.com/user-attachments/assets/6f088d54-fa2f-4aac-b6f4-e64921fb2a27" />
+)
 
 ## Features
 
