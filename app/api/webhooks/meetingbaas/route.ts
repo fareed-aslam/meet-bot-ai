@@ -1,6 +1,7 @@
 import { processMeetingTranscript } from "@/lib/ai-processor";
 import { prisma } from "@/lib/db";
 import { sendMeetingSummaryEmail } from "@/lib/email";
+import { Prisma } from "@/lib/generated/client";
 import { processTranscript } from "@/lib/rag";
 import { incrementMeetingUsage } from "@/lib/usage";
 import { NextRequest, NextResponse } from "next/server";
@@ -38,6 +39,27 @@ type MeetingBaasWebhookPayload = {
     data?: MeetingBaasWebhookData
 }
 
+function toPrismaJson(value: unknown): Prisma.InputJsonValue | typeof Prisma.DbNull {
+    if (value === undefined || value === null) return Prisma.DbNull
+
+    try {
+        const json = JSON.stringify(value)
+        if (json === undefined) return Prisma.DbNull
+        return JSON.parse(json) as Prisma.InputJsonValue
+    } catch {
+        // Last resort: store a string representation rather than failing the webhook.
+        return String(value) as unknown as Prisma.InputJsonValue
+    }
+}
+
+function errorForLog(error: unknown): unknown {
+    if (error instanceof Error) return error.stack ?? error.message
+    if (typeof error === 'object' && error && 'stack' in error) {
+        return String((error as { stack?: unknown }).stack)
+    }
+    return error
+}
+
 function transcriptToText(transcript: unknown): string {
     if (!transcript) return ''
 
@@ -67,8 +89,8 @@ export async function POST(request: NextRequest) {
         let webhook: MeetingBaasWebhookPayload
         try {
             webhook = JSON.parse(rawBody) as MeetingBaasWebhookPayload
-        } catch (parseError) {
-            console.error('invalid webhook json payload:', parseError?.stack || parseError)
+        } catch (parseError: unknown) {
+            console.error('invalid webhook json payload:', errorForLog(parseError))
             return NextResponse.json({ error: 'invalid json payload' }, { status: 400 })
         }
         if (webhook.event === 'complete') {
@@ -115,9 +137,9 @@ export async function POST(request: NextRequest) {
                 data: {
                     meetingEnded: true,
                     transcriptReady: Boolean(webhookData.transcript),
-                    transcript: webhookData.transcript || null,
+                    transcript: toPrismaJson(webhookData.transcript),
                     recordingUrl: webhookData.mp4 || null,
-                    speakers: webhookData.speakers || null
+                    speakers: toPrismaJson(webhookData.speakers)
                 }
             })
 
@@ -172,7 +194,7 @@ export async function POST(request: NextRequest) {
                                 })
                                 atLeastOneEmailSent = true
                             } catch (recipientError) {
-                                console.error(`failed to send meeting email to ${recipient}:`, recipientError?.stack || recipientError)
+                                    console.error(`failed to send meeting email to ${recipient}:`, errorForLog(recipientError))
                             }
                         }
 
@@ -188,7 +210,7 @@ export async function POST(request: NextRequest) {
                             })
                         }
                     } catch (emailError) {
-                        console.error('failed to send the email:', emailError?.stack || emailError)
+                        console.error('failed to send the email:', errorForLog(emailError))
                     }
 
                     await prisma.meeting.update({
@@ -208,12 +230,12 @@ export async function POST(request: NextRequest) {
                     try {
                         await processTranscript(meeting.id, meeting.userId, transcriptText, meeting.title)
                     } catch (ragError) {
-                        console.error('failed to index transcript for RAG:', ragError?.stack || ragError)
+                        console.error('failed to index transcript for RAG:', errorForLog(ragError))
                     }
 
 
                 } catch (processingError) {
-                    console.error('failed to process the transcript:', processingError?.stack || processingError)
+                    console.error('failed to process the transcript:', errorForLog(processingError))
 
                     await prisma.meeting.update({
                         where: {

@@ -78,7 +78,7 @@ function PastMeetings({
                             <h3 className='font-semibold text-lg text-foreground'>
                                 {meeting.title}
                             </h3>
-                            {meeting.attendees && (
+                            {meeting.attendees != null && (
                                 <AttendeeAvatars
                                     attendees={meeting.attendees}
                                     getAttendeeList={getAttendeeList}

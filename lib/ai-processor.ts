@@ -57,8 +57,11 @@ export async function processMeetingTranscript(transcript: TranscriptInput) {
                 .join('\n')
         } else if (typeof transcript === 'string') {
             transcriptText = transcript
-        } else if (transcript.text) {
-            transcriptText = transcript.text
+        } else if (typeof transcript === 'object' && transcript !== null && 'text' in transcript) {
+            const text = (transcript as { text?: unknown }).text
+            if (typeof text === 'string') {
+                transcriptText = text
+            }
         }
 
         if (!transcriptText || transcriptText.trim().length === 0) {
@@ -122,8 +125,15 @@ export async function processMeetingTranscript(transcript: TranscriptInput) {
             actionItems: actionItems
         }
 
-    } catch (error) {
-        console.error('error processing transcript with ai provider:', error?.stack || error)
+    } catch (error: unknown) {
+        const errorToLog =
+            error instanceof Error
+                ? error.stack ?? error.message
+                : typeof error === 'object' && error && 'stack' in error
+                  ? String((error as { stack?: unknown }).stack)
+                  : error
+
+        console.error('error processing transcript with ai provider:', errorToLog)
 
         return {
             summary: 'Meeting transcript processed successfully. Please check the full transcript for details.',
