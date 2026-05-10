@@ -1,16 +1,59 @@
 import OpenAI from 'openai'
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY!
-})
+type TranscriptInput = unknown
 
-export async function processMeetingTranscript(transcript: any) {
+type TranscriptWord = { word?: string }
+type TranscriptSegment = { speaker?: string; words?: TranscriptWord[] }
+
+function getAiClient() {
+    const provider = (process.env.MEETBOT_AI_PROVIDER || 'groq').toLowerCase()
+
+    if (provider === 'openai') {
+        return new OpenAI({
+            apiKey: process.env.OPENAI_API_KEY!
+        })
+    }
+
+    return new OpenAI({
+        apiKey: process.env.GROQ_API_KEY!,
+        baseURL: 'https://api.groq.com/openai/v1'
+    })
+}
+
+function extractJsonResponse(responseText: string) {
+    const trimmed = responseText.trim()
+
+    try {
+        return JSON.parse(trimmed)
+    } catch {
+        const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i)
+        if (fencedMatch?.[1]) {
+            return JSON.parse(fencedMatch[1].trim())
+        }
+
+        const start = trimmed.indexOf('{')
+        const end = trimmed.lastIndexOf('}')
+        if (start !== -1 && end !== -1 && end > start) {
+            return JSON.parse(trimmed.slice(start, end + 1))
+        }
+
+        throw new Error('Model response was not valid JSON')
+    }
+}
+
+export async function processMeetingTranscript(transcript: TranscriptInput) {
     try {
         let transcriptText = ''
 
         if (Array.isArray(transcript)) {
-            transcriptText = transcript
-                .map((item: any) => `${item.speaker || 'Speaker'}: ${item.words.map((w: any) => w.word).join(' ')}`)
+            transcriptText = (transcript as TranscriptSegment[])
+                .map((item) => {
+                    const speaker = item?.speaker || 'Speaker'
+                    const words = Array.isArray(item?.words)
+                        ? item.words.map((word) => String(word?.word ?? '').trim()).filter(Boolean).join(' ')
+                        : ''
+                    return `${speaker}: ${words}`.trim()
+                })
                 .join('\n')
         } else if (typeof transcript === 'string') {
             transcriptText = transcript
@@ -22,9 +65,12 @@ export async function processMeetingTranscript(transcript: any) {
             throw new Error('No transcript content found')
         }
 
+        const aiClient = getAiClient()
+        const model = (process.env.MEETBOT_AI_MODEL || (process.env.MEETBOT_AI_PROVIDER === 'openai' ? 'gpt-4o-mini' : 'llama-3.3-70b-versatile'))
 
-        const completion = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
+
+        const completion = await aiClient.chat.completions.create({
+            model,
             messages: [
                 {
                     role: "system",
@@ -58,10 +104,10 @@ export async function processMeetingTranscript(transcript: any) {
         const response = completion.choices[0].message.content
 
         if (!response) {
-            throw new Error('No response from chatgpt')
+            throw new Error('No response from AI provider')
         }
 
-        const parsed = JSON.parse(response)
+        const parsed = extractJsonResponse(response)
 
         const actionItems = Array.isArray(parsed.actionItems)
             ? parsed.actionItems.map((text: string, index: number) => ({
@@ -77,7 +123,7 @@ export async function processMeetingTranscript(transcript: any) {
         }
 
     } catch (error) {
-        console.error('error processing transcript with chatgpt:', error)
+        console.error('error processing transcript with ai provider:', error?.stack || error)
 
         return {
             summary: 'Meeting transcript processed successfully. Please check the full transcript for details.',

@@ -15,16 +15,27 @@ interface EmailData {
     meetingDate: string
 }
 
+const gmailUser = process.env.GMAIL_USER || process.env.GMAIL
+const gmailPassword = process.env.GMAIL_APP_PASSWORD
+
+if (!gmailUser || !gmailPassword) {
+    console.warn('Gmail email is not configured: set GMAIL_USER (or GMAIL) and GMAIL_APP_PASSWORD')
+}
+
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_APP_PASSWORD
+        user: gmailUser,
+        pass: gmailPassword
     }
 })
 
 export async function sendMeetingSummaryEmail(data: EmailData) {
     try {
+        if (!gmailUser || !gmailPassword) {
+            throw new Error('Gmail email is not configured: set GMAIL_USER (or GMAIL) and GMAIL_APP_PASSWORD')
+        }
+
         const emailHtml = await render(
             <MeetingSummaryEmailNew
                 userName={data.userName}
@@ -37,7 +48,7 @@ export async function sendMeetingSummaryEmail(data: EmailData) {
         )
 
         const result = await transporter.sendMail({
-            from: `"Meeting Bot" <${process.env.GMAIL_USER}>`,
+            from: `"Meeting Bot" <${gmailUser}>`,
             to: data.userEmail,
             subject: `Meeting Summary Ready - ${data.meetingTitle}`,
             html: emailHtml

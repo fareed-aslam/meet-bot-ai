@@ -3,8 +3,15 @@ import { processTranscript } from "@/lib/rag";
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 
+type UpstreamError = {
+    status?: number
+    response?: { status?: number }
+    code?: string
+    error?: { code?: string }
+}
+
 function toUpstreamErrorResponse(error: unknown) {
-    const err = error as any
+    const err = error as UpstreamError
     const status: number | undefined = err?.status ?? err?.response?.status
     const code: string | undefined = err?.code ?? err?.error?.code
 
@@ -14,7 +21,7 @@ function toUpstreamErrorResponse(error: unknown) {
             body: {
                 error: 'ai_quota_exceeded',
                 message:
-                    'Transcript processing requires embeddings, but the AI quota is exceeded. Please add billing/credits to your OpenAI account (or switch keys), then retry processing.',
+                    'Transcript processing failed because the AI provider quota is exceeded. Please add credits or switch the provider/key, then retry processing.',
             },
         }
     }
@@ -25,7 +32,7 @@ function toUpstreamErrorResponse(error: unknown) {
             body: {
                 error: 'ai_auth_failed',
                 message:
-                    'Transcript processing failed because the AI API key is invalid/missing. Please check `OPENAI_API_KEY` and retry.',
+                    'Transcript processing failed because the AI API key is invalid/missing. Please check the configured AI key and retry.',
             },
         }
     }

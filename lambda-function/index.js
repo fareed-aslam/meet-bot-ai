@@ -18,6 +18,7 @@ function createPrismaClient() {
 export const handler = async (event) => {
     prisma = createPrismaClient();
     try {
+        console.log('Scheduler run start')
         await syncAllUserCalendars()
 
         await scheduleBotsForUpcomingMeetings()
@@ -35,6 +36,26 @@ export const handler = async (event) => {
     } finally {
         await prisma.$disconnect()
     }
+}
+
+function getMeetingBaasWebhookUrl() {
+    if (process.env.WEBHOOK_URL) {
+        return process.env.WEBHOOK_URL
+    }
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL
+    if (appUrl) {
+        return `${appUrl.replace(/\/$/, '')}/api/webhooks/meetingbaas`
+    }
+
+    return null
+}
+
+function getIntFromEnv(name, defaultValue) {
+    const raw = process.env[name]
+    if (!raw) return defaultValue
+    const value = Number.parseInt(String(raw), 10)
+    return Number.isFinite(value) ? value : defaultValue
 }
 
 async function syncAllUserCalendars() {
@@ -298,13 +319,25 @@ async function processEvent(user, event) {
 
 async function scheduleBotsForUpcomingMeetings() {
     const now = new Date()
-    const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000)
+    const lateJoinMinutes = getIntFromEnv('MEETBOT_SCHEDULER_LATE_JOIN_MINUTES', 60)
+    const lookAheadMinutes = getIntFromEnv('MEETBOT_SCHEDULER_LOOKAHEAD_MINUTES', 5)
+
+    const windowStart = new Date(now.getTime() - lateJoinMinutes * 60 * 1000)
+    const windowEnd = new Date(now.getTime() + lookAheadMinutes * 60 * 1000)
+
+    const webhookUrl = getMeetingBaasWebhookUrl()
+    if (!webhookUrl) {
+        throw new Error('Missing WEBHOOK_URL (or NEXT_PUBLIC_APP_URL) required for MeetingBaas webhook callbacks')
+    }
 
     const upcomingMeetings = await prisma.meeting.findMany({
         where: {
             startTime: {
-                gte: now,
-                lte: fiveMinutesFromNow
+                gte: windowStart,
+                lte: windowEnd
+            },
+            endTime: {
+                gt: now
             },
             botScheduled: true,
             botSent: false,
@@ -318,20 +351,14 @@ async function scheduleBotsForUpcomingMeetings() {
         }
     })
 
+    console.log(`Eligible meetings: ${upcomingMeetings.length} (window -${lateJoinMinutes}m..+${lookAheadMinutes}m)`) 
+
     for (const meeting of upcomingMeetings) {
         try {
             const canSchedule = await canUserScheduleMeeting(meeting.user)
 
             if (!canSchedule.allowed) {
-                await prisma.meeting.update({
-                    where: {
-                        id: meeting.id
-                    },
-                    data: {
-                        botSent: true,
-                        botJoinedAt: new Date()
-                    }
-                })
+                console.warn(`Skipping bot for meeting ${meeting.id}: ${canSchedule.reason}`)
                 continue
             }
             const requestBody = {
@@ -340,7 +367,7 @@ async function scheduleBotsForUpcomingMeetings() {
                 reserved: false,
                 recording_mode: 'speaker_view',
                 speech_to_text: { provider: "Default" },
-                webhook_url: process.env.WEBHOOK_URL,
+                webhook_url: webhookUrl,
                 extra: {
                     meeting_id: meeting.id,
                     user_id: meeting.userId
@@ -361,10 +388,14 @@ async function scheduleBotsForUpcomingMeetings() {
             })
 
             if (!response.ok) {
-                throw new Error(`meeting baas api req failed: ${response.status}`)
+                const bodyText = await response.text().catch(() => '')
+                const errText = `meeting baas api req failed: ${response.status}${bodyText ? ` - ${bodyText}` : ''}`
+                throw new Error(errText)
             }
 
             const data = await response.json()
+
+            console.log(`Bot scheduled for meeting ${meeting.id}: ${data.bot_id}`)
 
             await prisma.meeting.update({
                 where: {
@@ -379,7 +410,7 @@ async function scheduleBotsForUpcomingMeetings() {
 
             await incrementMeetingUsage(meeting.userId)
         } catch (error) {
-            console.error(`bot failed for ${meeting.title}: `, error.message)
+            console.error(`bot failed for ${meeting.title}: `, error?.stack || error)
         }
 
     }
@@ -387,6 +418,10 @@ async function scheduleBotsForUpcomingMeetings() {
 
 async function canUserScheduleMeeting(user) {
     try {
+        if (process.env.MEETBOT_BYPASS_LIMITS === 'true') {
+            return { allowed: true }
+        }
+
         const PLAN_LIMITS = {
             free: { meetings: 0 },
             starter: { meetings: 10 },
@@ -434,5 +469,34 @@ async function incrementMeetingUsage(userId) {
         })
     } catch (error) {
         console.error('error incrementing meeting usage:', error)
+    }
+}
+
+// Allow running locally: `node lambda-function/index.js`
+// Optional: pass `--continuous` (or set MEETBOT_SCHEDULER_CONTINUOUS=true) to run every 60 seconds.
+if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '/'))) {
+    const runOnce = async () => {
+        const result = await handler({ source: 'local' })
+        if (result?.statusCode && result.statusCode >= 400) {
+            process.exitCode = 1
+        }
+    }
+
+    const continuous = process.env.MEETBOT_SCHEDULER_CONTINUOUS === 'true' || process.argv.includes('--continuous')
+
+    if (continuous) {
+        console.log('Starting scheduler loop (every 60s)...')
+        runOnce().catch((e) => {
+            console.error(e)
+            process.exitCode = 1
+        })
+        setInterval(() => {
+            runOnce().catch((e) => console.error(e))
+        }, 60_000)
+    } else {
+        runOnce().catch((e) => {
+            console.error(e)
+            process.exitCode = 1
+        })
     }
 }

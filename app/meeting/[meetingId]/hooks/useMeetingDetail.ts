@@ -3,18 +3,23 @@ import { useAuth } from "@clerk/nextjs"
 import { useParams } from "next/navigation"
 import { useEffect, useState } from "react"
 
+type TranscriptWord = { word?: string }
+type TranscriptSegment = { speaker?: string; words?: TranscriptWord[] }
+
+type ActionItem = {
+    id: number
+    text: string
+}
+
 export interface MeetingData {
     id: string
     title: string
     description?: string
     startTime: string
     endTime: string
-    transcript?: any
+    transcript?: unknown
     summary?: string
-    actionItems?: Array<{
-        id: number
-        text: string
-    }>
+    actionItems?: ActionItem[]
     processed: boolean
     processedAt?: string
     recordingUrl?: string
@@ -37,7 +42,8 @@ export function useMeetingDetail() {
     const [userChecked, setUserChecked] = useState(false)
 
     const [activeTab, setActiveTab] = useState<'summary' | 'transcript'>('summary')
-    const [localActionItems, setLocalActionItems] = useState<any[]>([])
+    const [localActionItems, setLocalActionItems] = useState<ActionItem[]>([])
+    const [summaryRecoveryAttempted, setSummaryRecoveryAttempted] = useState(false)
 
     const [meetingData, setMeetingData] = useState<MeetingData | null>(null)
     const [loading, setLoading] = useState(true)
@@ -119,8 +125,13 @@ export function useMeetingDetail() {
                     if (typeof meeting.transcript === 'string') {
                         transcriptText = meeting.transcript
                     } else if (Array.isArray(meeting.transcript)) {
-                        transcriptText = meeting.transcript
-                            .map((segment: any) => `${segment.speaker}: ${segment.words.map((w: any) => w.word).join(' ')}`)
+                        transcriptText = (meeting.transcript as TranscriptSegment[])
+                            .map((segment) => {
+                                const words = Array.isArray(segment.words)
+                                    ? segment.words.map((word) => String(word?.word ?? '').trim()).filter(Boolean).join(' ')
+                                    : ''
+                                return `${segment.speaker || 'Speaker'}: ${words}`.trim()
+                            })
                             .join('\n')
                     }
 
@@ -146,6 +157,44 @@ export function useMeetingDetail() {
         }
     }, [meetingId, userId, isLoaded, userChecked])
 
+    useEffect(() => {
+        const recoverSummary = async () => {
+            if (!isLoaded || !userChecked || !isOwner || summaryRecoveryAttempted || !meetingData) {
+                return
+            }
+
+            if (!meetingData.transcript || meetingData.processed) {
+                return
+            }
+
+            setSummaryRecoveryAttempted(true)
+
+            try {
+                const response = await fetch(`/api/meetings/${meetingId}/reprocess`, {
+                    method: 'POST'
+                })
+
+                if (!response.ok) {
+                    console.error('summary recovery failed:', await response.text())
+                    return
+                }
+
+                const refreshed = await fetch(`/api/meetings/${meetingId}`)
+                if (refreshed.ok) {
+                    const data = await refreshed.json()
+                    setMeetingData(data)
+                    if (data.actionItems && data.actionItems.length > 0) {
+                        setLocalActionItems(data.actionItems)
+                    }
+                }
+            } catch (error) {
+                console.error('summary recovery error:', error)
+            }
+        }
+
+        recoverSummary()
+    }, [isLoaded, userChecked, isOwner, meetingData, meetingId, summaryRecoveryAttempted])
+
 
     const deleteActionItem = async (id: number) => {
         if (!isOwner) {
@@ -156,7 +205,7 @@ export function useMeetingDetail() {
 
     }
 
-    const addActionItem = async (text: string) => {
+    const addActionItem = async () => {
         if (!isOwner) {
             return
         }
@@ -173,7 +222,7 @@ export function useMeetingDetail() {
     }
 
     const displayActionItems = localActionItems.length > 0
-        ? localActionItems.map((item: any) => ({
+        ? localActionItems.map((item) => ({
             id: item.id,
             text: item.text
         }))

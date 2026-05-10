@@ -11,7 +11,7 @@ export interface CalendarEvent {
     attendees?: Array<{ email: string }>
     location?: string
     hangoutLink?: string
-    conferenceData?: any
+    conferenceData?: unknown
     botScheduled?: boolean
     meetingId?: string
 }
@@ -23,10 +23,10 @@ export interface PastMeeting {
     meetingUrl: string | null
     startTime: Date
     endTime: Date
-    attendees?: any
+    attendees?: unknown
     transcriptReady: boolean
     recordingUrl?: string | null
-    speakers?: any
+    speakers?: unknown
 }
 
 export function useMeetings() {
@@ -86,7 +86,7 @@ export function useMeetings() {
 
             setBotToggles(toggles)
 
-        } catch (error) {
+        } catch {
             setError("failed to fetch calnedar events. please try agan")
             setConnected(false)
         }
@@ -103,19 +103,19 @@ export function useMeetings() {
             const response = await fetch('/api/meetings/past')
             const result = await response.json()
 
-            if (!response.ok) {
-                console.error('faild to fetch past meetings:', result.error)
+            if (!response.ok || result?.error) {
+                console.error('faild to fetch past meetings:', result?.error)
+                setPastMeetings([])
                 return
             }
 
-            if (result.error) {
-                return
-            }
             setPastMeetings(result.meetings as PastMeeting[])
         } catch (error) {
             console.error('faild to fetch past meetings:', error)
+            setPastMeetings([])
+        } finally {
+            setPastLoading(false)
         }
-        setPastLoading(false)
     }
 
     const toggleBot = async (eventId: string) => {
@@ -162,7 +162,7 @@ export function useMeetings() {
         }
     }
 
-    const getAttendeeList = (attendees: any): string[] => {
+    const getAttendeeList = (attendees: unknown): string[] => {
         if (!attendees) {
             return []
         }

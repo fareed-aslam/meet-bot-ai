@@ -3,8 +3,15 @@ import { chatWithAllMeetings } from "@/lib/rag";
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 
+type UpstreamError = {
+    status?: number
+    response?: { status?: number }
+    code?: string
+    error?: { code?: string }
+}
+
 function toUpstreamErrorResponse(error: unknown) {
-    const err = error as any
+    const err = error as UpstreamError
     const status: number | undefined = err?.status ?? err?.response?.status
     const code: string | undefined = err?.code ?? err?.error?.code
 
@@ -14,7 +21,7 @@ function toUpstreamErrorResponse(error: unknown) {
             body: {
                 error: 'ai_quota_exceeded',
                 answer:
-                    'I can’t answer right now because the AI quota is exceeded. Please add billing/credits to your OpenAI account (or switch keys), then try again.',
+                    'I can’t answer right now because the AI provider quota is exceeded. Please add billing/credits or switch the provider/key, then try again.',
             },
         }
     }
@@ -25,7 +32,7 @@ function toUpstreamErrorResponse(error: unknown) {
             body: {
                 error: 'ai_auth_failed',
                 answer:
-                    'I can’t answer right now because the AI API key is invalid/missing. Please check `OPENAI_API_KEY` and try again.',
+                    'I can’t answer right now because the AI API key is invalid/missing. Please check the configured AI key and try again.',
             },
         }
     }

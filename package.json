@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "scheduler:once": "node --env-file=.env lambda-function/index.js",
+    "scheduler:watch": "node --env-file=.env lambda-function/index.js --continuous",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"

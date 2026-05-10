@@ -203,6 +203,27 @@ npm run dev
 
 Open http://localhost:3000
 
+## Bot Scheduler (Required for Bot Joining)
+
+The meeting bot does **not** join just because you opened/started a meeting in your browser.
+
+Bots are deployed by a scheduler (AWS Lambda + EventBridge in production). In local development you must run the scheduler yourself so it can:
+
+- sync Google Calendar → create/update `Meeting` rows
+- deploy a MeetingBaas bot for meetings starting soon
+
+Run it locally:
+
+```bash
+npm run scheduler:watch
+```
+
+Notes:
+
+- MeetingBaas needs a **public** webhook URL to post meeting results. Set `WEBHOOK_URL` to your tunnel URL, e.g. `https://xxxx.ngrok-free.dev/api/webhooks/meetingbaas`.
+- If you leave `NEXT_PUBLIC_APP_URL=http://localhost:3000`, the scheduler will still deploy the bot, but MeetingBaas won’t be able to call your webhook unless you’re using a tunnel.
+- For local testing without subscription gating, you can set `MEETBOT_BYPASS_LIMITS=true`.
+
 ## Webhooks & Local Tunneling
 
 Some integrations require a public URL in development (Stripe, Slack, meeting provider).
@@ -210,6 +231,10 @@ Some integrations require a public URL in development (Stripe, Slack, meeting pr
 - Use a tunnel (ngrok or Cloudflare Tunnel)
 - Set `NEXT_PUBLIC_APP_URL` to the public URL
 - Update the provider dashboard to point webhooks to your tunnel URL
+
+For MeetingBaas specifically, set:
+
+- `WEBHOOK_URL=https://<your-tunnel>/api/webhooks/meetingbaas`
 
 ## Usage Limits / Plans
 
