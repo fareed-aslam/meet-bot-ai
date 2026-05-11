@@ -42,6 +42,8 @@ function MeetingDetail() {
             ? 'Waiting for transcript..'
             : 'Processing meeting with AI..'
 
+    const transcript = meetingData?.transcript
+
     return (
         <div className='min-h-screen bg-background'>
 
@@ -165,7 +167,7 @@ function MeetingDetail() {
                                                 </p>
                                             )}
 
-                                            {isOwner && meetingData?.transcript && (
+                                            {isOwner && Boolean(transcript) && (
                                                 <div className='mt-4'>
                                                     <Button
                                                         type='button'
@@ -189,8 +191,8 @@ function MeetingDetail() {
                                             <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4'></div>
                                             <p className='text-muted-foreground'>Loading meeting data..</p>
                                         </div>
-                                    ) : meetingData?.transcript ? (
-                                        <TranscriptDisplay transcript={meetingData.transcript} />
+                                    ) : Boolean(transcript) ? (
+                                        <TranscriptDisplay transcript={transcript} />
                                     ) : (
                                         <div className='bg-card rounded-lg p-6 border border-border text-center'>
                                             <p className='text-muted-foreground'>No transcript avaialable</p>
