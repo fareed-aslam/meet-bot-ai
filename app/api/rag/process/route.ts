@@ -8,9 +8,29 @@ type UpstreamError = {
     response?: { status?: number }
     code?: string
     error?: { code?: string }
+    name?: string
+    message?: string
 }
 
 function toUpstreamErrorResponse(error: unknown) {
+    const pineconeName = (error as any)?.name
+    const pineconeMessage = (error as any)?.message
+    if (
+        pineconeName === 'PineconeBadRequestError' &&
+        typeof pineconeMessage === 'string' &&
+        pineconeMessage.includes('Vector dimension') &&
+        pineconeMessage.includes('does not match the dimension of the index')
+    ) {
+        return {
+            status: 500,
+            body: {
+                error: 'rag_misconfigured',
+                message:
+                    'Vector storage is misconfigured: the embedding dimension does not match the Pinecone index dimension. Fix by setting MEETBOT_EMBEDDING_DIMENSIONS to match the index (e.g. 1536) and ensuring PINECONE_INDEX_NAME points to that index, then redeploy.',
+            },
+        }
+    }
+
     const err = error as UpstreamError
     const status: number | undefined = err?.status ?? err?.response?.status
     const code: string | undefined = err?.code ?? err?.error?.code

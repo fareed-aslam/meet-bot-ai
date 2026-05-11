@@ -4,6 +4,20 @@ import { requireEnv } from '@/lib/env'
 
 type Vector = number[]
 
+function getLocalEmbeddingDimensions() {
+    const raw = process.env.MEETBOT_EMBEDDING_DIMENSIONS
+    if (!raw) return 384
+
+    const value = Number(raw)
+    if (!Number.isFinite(value) || !Number.isInteger(value) || value <= 0) {
+        throw new Error(
+            `Invalid MEETBOT_EMBEDDING_DIMENSIONS: "${raw}" (expected a positive integer)`
+        )
+    }
+
+    return value
+}
+
 function normalizeText(text: string) {
     return text
         .toLowerCase()
@@ -51,11 +65,12 @@ function getAiClient() {
 }
 
 export async function createEmbedding(text: string) {
-    return createLocalEmbedding(text)
+    return createLocalEmbedding(text, getLocalEmbeddingDimensions())
 }
 
 export async function createManyEmbeddings(texts: string[]) {
-    return texts.map((text) => createLocalEmbedding(text))
+    const dimensions = getLocalEmbeddingDimensions()
+    return texts.map((text) => createLocalEmbedding(text, dimensions))
 }
 
 export async function chatWithAI(systemPrompt: string, userQuestion: string) {

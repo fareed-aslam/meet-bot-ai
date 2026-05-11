@@ -148,6 +148,7 @@ Feature-specific variables:
 - **OpenAI**
 	- `OPENAI_API_KEY`
 	- `MEETBOT_MOCK_AI` — set to `true` to bypass OpenAI/Pinecone calls in dev
+	- `MEETBOT_EMBEDDING_DIMENSIONS` — dimension used by the local embedding function; must match your Pinecone index dimension (default: 384)
 
 - **Pinecone (RAG)**
 	- `PINECONE_API_KEY`

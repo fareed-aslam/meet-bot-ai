@@ -8,6 +8,8 @@ type UpstreamError = {
     response?: { status?: number }
     code?: string
     error?: { code?: string }
+    name?: string
+    message?: string
 }
 
 function toUpstreamErrorResponse(error: unknown) {
@@ -19,6 +21,24 @@ function toUpstreamErrorResponse(error: unknown) {
                 missing: error.missing,
                 answer:
                     'Server configuration is missing required environment variables. Please update Vercel project env vars and redeploy.',
+            },
+        }
+    }
+
+    const pineconeName = (error as any)?.name
+    const pineconeMessage = (error as any)?.message
+    if (
+        pineconeName === 'PineconeBadRequestError' &&
+        typeof pineconeMessage === 'string' &&
+        pineconeMessage.includes('Vector dimension') &&
+        pineconeMessage.includes('does not match the dimension of the index')
+    ) {
+        return {
+            status: 500,
+            body: {
+                error: 'rag_misconfigured',
+                answer:
+                    'Vector search is misconfigured: the embedding dimension does not match the Pinecone index dimension. Fix by setting MEETBOT_EMBEDDING_DIMENSIONS to match the index (e.g. 1536) and ensuring PINECONE_INDEX_NAME points to that index, then redeploy.',
             },
         }
     }
