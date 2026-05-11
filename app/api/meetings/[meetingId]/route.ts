@@ -36,7 +36,11 @@ export async function GET(
             isOwner: clerkUserId === meeting.user?.clerkId
         }
 
-        return NextResponse.json(responseData)
+        return NextResponse.json(responseData, {
+            headers: {
+                'Cache-Control': 'no-store, max-age=0'
+            }
+        })
     } catch (error) {
         console.error('api error:', error)
         return NextResponse.json({ error: 'failed to fetch meeting' }, { status: 500 })

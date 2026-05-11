@@ -17,6 +17,8 @@ export interface MeetingData {
     description?: string
     startTime: string
     endTime: string
+    meetingEnded?: boolean
+    transcriptReady?: boolean
     transcript?: unknown
     summary?: string
     actionItems?: ActionItem[]
@@ -83,7 +85,7 @@ export function useMeetingDetail() {
     useEffect(() => {
         const fetchMeetingData = async () => {
             try {
-                const response = await fetch(`/api/meetings/${meetingId}`)
+                const response = await fetch(`/api/meetings/${meetingId}`, { cache: 'no-store' })
                 if (response.ok) {
                     const data = await response.json()
                     setMeetingData(data)
@@ -110,6 +112,46 @@ export function useMeetingDetail() {
             fetchMeetingData()
         }
     }, [meetingId, userId, isLoaded])
+
+    // Poll meeting status until it's processed so the UI doesn't get stuck
+    // on the "Processing meeting with AI" screen after the webhook finishes.
+    useEffect(() => {
+        if (!isLoaded || !meetingId || loading) {
+            return
+        }
+
+        if (!meetingData || meetingData.processed) {
+            return
+        }
+
+        let cancelled = false
+        const intervalId = window.setInterval(async () => {
+            try {
+                const response = await fetch(`/api/meetings/${meetingId}`, { cache: 'no-store' })
+                if (!response.ok) {
+                    return
+                }
+                const data = await response.json()
+                if (cancelled) {
+                    return
+                }
+                setMeetingData(data)
+                if (data.actionItems && data.actionItems.length > 0) {
+                    setLocalActionItems(data.actionItems)
+                }
+                if (data.processed) {
+                    window.clearInterval(intervalId)
+                }
+            } catch (error) {
+                console.error('error polling meeting status:', error)
+            }
+        }, 5000)
+
+        return () => {
+            cancelled = true
+            window.clearInterval(intervalId)
+        }
+    }, [isLoaded, meetingId, loading, meetingData])
 
     useEffect(() => {
         const processTranscript = async () => {
@@ -167,32 +209,52 @@ export function useMeetingDetail() {
                 return
             }
 
-            setSummaryRecoveryAttempted(true)
+            // Don't immediately reprocess when a transcript arrives because the webhook
+            // might still be running in the background (otherwise we can double-charge AI).
+            const recoveryDelayMs = 90_000
+            const timeoutId = window.setTimeout(async () => {
+                setSummaryRecoveryAttempted(true)
 
-            try {
-                const response = await fetch(`/api/meetings/${meetingId}/reprocess`, {
-                    method: 'POST'
-                })
-
-                if (!response.ok) {
-                    console.error('summary recovery failed:', await response.text())
-                    return
-                }
-
-                const refreshed = await fetch(`/api/meetings/${meetingId}`)
-                if (refreshed.ok) {
-                    const data = await refreshed.json()
-                    setMeetingData(data)
-                    if (data.actionItems && data.actionItems.length > 0) {
-                        setLocalActionItems(data.actionItems)
+                try {
+                    const latest = await fetch(`/api/meetings/${meetingId}`, { cache: 'no-store' })
+                    if (!latest.ok) {
+                        return
                     }
+                    const latestData = await latest.json()
+                    if (latestData.processed) {
+                        setMeetingData(latestData)
+                        return
+                    }
+
+                    const response = await fetch(`/api/meetings/${meetingId}/reprocess`, {
+                        method: 'POST'
+                    })
+
+                    if (!response.ok) {
+                        console.error('summary recovery failed:', await response.text())
+                        return
+                    }
+
+                    const refreshed = await fetch(`/api/meetings/${meetingId}`, { cache: 'no-store' })
+                    if (refreshed.ok) {
+                        const data = await refreshed.json()
+                        setMeetingData(data)
+                        if (data.actionItems && data.actionItems.length > 0) {
+                            setLocalActionItems(data.actionItems)
+                        }
+                    }
+                } catch (error) {
+                    console.error('summary recovery error:', error)
                 }
-            } catch (error) {
-                console.error('summary recovery error:', error)
-            }
+            }, recoveryDelayMs)
+
+            return () => window.clearTimeout(timeoutId)
         }
 
-        recoverSummary()
+        const cleanup = recoverSummary()
+        return () => {
+            if (typeof cleanup === 'function') cleanup()
+        }
     }, [isLoaded, userChecked, isOwner, meetingData, meetingId, summaryRecoveryAttempted])
 
 
