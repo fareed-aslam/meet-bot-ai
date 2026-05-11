@@ -24,6 +24,9 @@ function MeetingDetail() {
         setActiveTab,
         meetingData,
         loading,
+        processingError,
+        reprocessLoading,
+        triggerReprocess,
         handleSendMessage,
         handleSuggestionClick,
         handleInputChange,
@@ -32,6 +35,12 @@ function MeetingDetail() {
         displayActionItems,
         meetingInfoData
     } = useMeetingDetail()
+
+    const processingTitle = !meetingData?.meetingEnded
+        ? 'Waiting for meeting to end..'
+        : meetingData?.transcriptReady === false
+            ? 'Waiting for transcript..'
+            : 'Processing meeting with AI..'
 
     return (
         <div className='min-h-screen bg-background'>
@@ -147,8 +156,26 @@ function MeetingDetail() {
                                     ) : (
                                         <div className='bg-card border border-border rounded-lg p-6 text-center'>
                                             <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4'></div>
-                                            <p className='text-muted-foreground'>Processing meeting with AI..</p>
+                                            <p className='text-muted-foreground'>{processingTitle}</p>
                                             <p className='text-sm text-muted-foreground mt-2'>You'll receive an email when ready</p>
+
+                                            {processingError && (
+                                                <p className='text-sm text-destructive mt-3 whitespace-pre-wrap'>
+                                                    {processingError}
+                                                </p>
+                                            )}
+
+                                            {isOwner && meetingData?.transcript && (
+                                                <div className='mt-4'>
+                                                    <Button
+                                                        type='button'
+                                                        onClick={triggerReprocess}
+                                                        disabled={reprocessLoading}
+                                                    >
+                                                        {reprocessLoading ? 'Retrying...' : 'Retry Processing Now'}
+                                                    </Button>
+                                                </div>
+                                            )}
 
                                         </div>
                                     )}

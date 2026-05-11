@@ -93,7 +93,11 @@ export async function POST(request: NextRequest) {
             console.error('invalid webhook json payload:', errorForLog(parseError))
             return NextResponse.json({ error: 'invalid json payload' }, { status: 400 })
         }
-        if (webhook.event === 'complete') {
+        const normalizedEvent = String(webhook.event || '').toLowerCase()
+        const hasCompletionPayload = Boolean(webhook.data?.transcript) || Boolean(webhook.data?.mp4) || Boolean(webhook.data?.speakers)
+        const isCompletionEvent = ['complete', 'completed', 'end', 'ended', 'finish', 'finished'].includes(normalizedEvent)
+
+        if (isCompletionEvent || hasCompletionPayload) {
             const webhookData = webhook.data
 
             if (!webhookData) {
@@ -259,7 +263,7 @@ export async function POST(request: NextRequest) {
         }
         return NextResponse.json({
             success: true,
-            message: 'webhook recieved but no action needed bro'
+            message: 'webhook received but no action needed'
         })
     } catch (error) {
         console.error('webhook processing errir:', error)

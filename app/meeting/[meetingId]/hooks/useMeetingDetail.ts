@@ -49,6 +49,8 @@ export function useMeetingDetail() {
 
     const [meetingData, setMeetingData] = useState<MeetingData | null>(null)
     const [loading, setLoading] = useState(true)
+    const [processingError, setProcessingError] = useState<string | null>(null)
+    const [reprocessLoading, setReprocessLoading] = useState(false)
 
     const chat = useChatCore({
         apiEndpoint: '/api/rag/chat-meeting',
@@ -86,24 +88,28 @@ export function useMeetingDetail() {
         const fetchMeetingData = async () => {
             try {
                 const response = await fetch(`/api/meetings/${meetingId}`, { cache: 'no-store' })
-                if (response.ok) {
-                    const data = await response.json()
-                    setMeetingData(data)
+                if (!response.ok) {
+                    setProcessingError(`Failed to load meeting (HTTP ${response.status}).`)
+                    return
+                }
 
-                    if (isLoaded) {
-                        const ownerStatus = userId === data.userId
-                        setIsOwner(ownerStatus)
-                        setUserChecked(true)
-                    }
+                const data = await response.json()
+                setMeetingData(data)
 
-                    if (data.actionItems && data.actionItems.length > 0) {
-                        setLocalActionItems(data.actionItems)
-                    } else {
-                        setLocalActionItems([])
-                    }
+                if (isLoaded) {
+                    const ownerStatus = userId === data.userId
+                    setIsOwner(ownerStatus)
+                    setUserChecked(true)
+                }
+
+                if (data.actionItems && data.actionItems.length > 0) {
+                    setLocalActionItems(data.actionItems)
+                } else {
+                    setLocalActionItems([])
                 }
             } catch (error) {
                 console.error('error fetching meeting:', error)
+                setProcessingError('Failed to load meeting. Please refresh and try again.')
             } finally {
                 setLoading(false)
             }
@@ -112,6 +118,38 @@ export function useMeetingDetail() {
             fetchMeetingData()
         }
     }, [meetingId, userId, isLoaded])
+
+    const triggerReprocess = async () => {
+        if (!meetingId) return
+        setReprocessLoading(true)
+        setProcessingError(null)
+
+        try {
+            const response = await fetch(`/api/meetings/${meetingId}/reprocess`, {
+                method: 'POST'
+            })
+
+            if (!response.ok) {
+                const text = await response.text().catch(() => '')
+                setProcessingError(text || `Reprocess failed (HTTP ${response.status}).`)
+                return
+            }
+
+            const refreshed = await fetch(`/api/meetings/${meetingId}`, { cache: 'no-store' })
+            if (refreshed.ok) {
+                const data = await refreshed.json()
+                setMeetingData(data)
+                if (data.actionItems && data.actionItems.length > 0) {
+                    setLocalActionItems(data.actionItems)
+                }
+            }
+        } catch (error) {
+            console.error('reprocess error:', error)
+            setProcessingError('Reprocess failed due to a network/server error. Please try again.')
+        } finally {
+            setReprocessLoading(false)
+        }
+    }
 
     // Poll meeting status until it's processed so the UI doesn't get stuck
     // on the "Processing meeting with AI" screen after the webhook finishes.
@@ -129,6 +167,7 @@ export function useMeetingDetail() {
             try {
                 const response = await fetch(`/api/meetings/${meetingId}`, { cache: 'no-store' })
                 if (!response.ok) {
+                    setProcessingError(`Failed to refresh meeting status (HTTP ${response.status}).`)
                     return
                 }
                 const data = await response.json()
@@ -136,6 +175,7 @@ export function useMeetingDetail() {
                     return
                 }
                 setMeetingData(data)
+                setProcessingError(null)
                 if (data.actionItems && data.actionItems.length > 0) {
                     setLocalActionItems(data.actionItems)
                 }
@@ -144,6 +184,7 @@ export function useMeetingDetail() {
                 }
             } catch (error) {
                 console.error('error polling meeting status:', error)
+                setProcessingError('Failed to refresh meeting status. Please check your connection.')
             }
         }, 5000)
 
@@ -226,23 +267,7 @@ export function useMeetingDetail() {
                         return
                     }
 
-                    const response = await fetch(`/api/meetings/${meetingId}/reprocess`, {
-                        method: 'POST'
-                    })
-
-                    if (!response.ok) {
-                        console.error('summary recovery failed:', await response.text())
-                        return
-                    }
-
-                    const refreshed = await fetch(`/api/meetings/${meetingId}`, { cache: 'no-store' })
-                    if (refreshed.ok) {
-                        const data = await refreshed.json()
-                        setMeetingData(data)
-                        if (data.actionItems && data.actionItems.length > 0) {
-                            setLocalActionItems(data.actionItems)
-                        }
-                    }
+                    await triggerReprocess()
                 } catch (error) {
                     console.error('summary recovery error:', error)
                 }
@@ -312,6 +337,9 @@ export function useMeetingDetail() {
         setMeetingData,
         loading,
         setLoading,
+        processingError,
+        reprocessLoading,
+        triggerReprocess,
         chatInput: chat.chatInput,
         setChatInput: chat.setChatInput,
         messages: chat.messages,
