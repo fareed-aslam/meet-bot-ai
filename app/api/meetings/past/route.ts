@@ -1,6 +1,20 @@
 import { prisma } from "@/lib/db";
+import { DEMO_PAST_MEETINGS } from "@/lib/demoMeetings";
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+
+type PastMeetingCard = {
+    id: string
+    title: string
+    description?: string | null
+    meetingUrl: string | null
+    startTime: Date
+    endTime: Date
+    attendees?: unknown
+    transcriptReady: boolean
+    recordingUrl?: string | null
+    speakers?: unknown
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -17,7 +31,8 @@ export async function GET() {
         })
 
         if (!user) {
-            return NextResponse.json({ error: "user not found" }, { status: 404 })
+            // New users might not exist in Prisma yet; still show demo meetings.
+            return NextResponse.json({ meetings: DEMO_PAST_MEETINGS })
         }
 
         const now = new Date()
@@ -54,7 +69,28 @@ export async function GET() {
             take: 50
         })
 
-        return NextResponse.json({ meetings: pastMeetings })
+        const mapped: PastMeetingCard[] = pastMeetings.map((m) => ({
+            id: m.id,
+            title: m.title,
+            description: m.description ?? null,
+            meetingUrl: m.meetingUrl ?? null,
+            startTime: m.startTime,
+            endTime: m.endTime,
+            attendees: m.attendees ?? undefined,
+            transcriptReady: Boolean(m.transcriptReady),
+            recordingUrl: m.recordingUrl ?? null,
+            speakers: m.speakers ?? undefined
+        }))
+
+        const combined: PastMeetingCard[] = [...mapped]
+        const existingIds = new Set(combined.map((m) => m.id))
+        for (const demo of DEMO_PAST_MEETINGS) {
+            if (!existingIds.has(demo.id)) {
+                combined.push(demo)
+            }
+        }
+
+        return NextResponse.json({ meetings: combined })
 
     } catch (error) {
         console.error('failed to fetch past meetings:', error)

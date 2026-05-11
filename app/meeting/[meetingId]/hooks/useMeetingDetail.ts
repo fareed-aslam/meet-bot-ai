@@ -1,7 +1,7 @@
 import { useChatCore } from "@/app/hooks/chat/useChatCore"
 import { useAuth } from "@clerk/nextjs"
 import { useParams } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 type TranscriptWord = { word?: string }
 type TranscriptSegment = { speaker?: string; words?: TranscriptWord[] }
@@ -51,6 +51,12 @@ export function useMeetingDetail() {
     const [loading, setLoading] = useState(true)
     const [processingError, setProcessingError] = useState<string | null>(null)
     const [reprocessLoading, setReprocessLoading] = useState(false)
+
+    const pollIntervalMs = !meetingData?.meetingEnded
+        ? null
+        : meetingData?.transcriptReady === false
+            ? 20_000
+            : 5_000
 
     const chat = useChatCore({
         apiEndpoint: '/api/rag/chat-meeting',
@@ -119,7 +125,7 @@ export function useMeetingDetail() {
         }
     }, [meetingId, userId, isLoaded])
 
-    const triggerReprocess = async () => {
+    const triggerReprocess = useCallback(async () => {
         if (!meetingId) return
         setReprocessLoading(true)
         setProcessingError(null)
@@ -149,7 +155,7 @@ export function useMeetingDetail() {
         } finally {
             setReprocessLoading(false)
         }
-    }
+    }, [meetingId])
 
     // Poll meeting status until it's processed so the UI doesn't get stuck
     // on the "Processing meeting with AI" screen after the webhook finishes.
@@ -162,18 +168,46 @@ export function useMeetingDetail() {
             return
         }
 
+        // Don't hammer the API while the meeting is still running.
+        // Polling too aggressively can trigger Vercel's mitigation challenge (403).
+        if (!meetingData.meetingEnded) {
+            return
+        }
+
+        if (!pollIntervalMs) {
+            return
+        }
+
         let cancelled = false
+        let consecutiveFailures = 0
         const intervalId = window.setInterval(async () => {
             try {
                 const response = await fetch(`/api/meetings/${meetingId}`, { cache: 'no-store' })
                 if (!response.ok) {
-                    setProcessingError(`Failed to refresh meeting status (HTTP ${response.status}).`)
+                    consecutiveFailures += 1
+
+                    const vercelMitigated = response.headers.get('x-vercel-mitigated')
+                    if (response.status === 403 && vercelMitigated) {
+                        setProcessingError(
+                            'Vercel security challenge blocked the status refresh (HTTP 403). This usually happens when the page polls too frequently. Please wait ~30s and refresh the page.'
+                        )
+                        window.clearInterval(intervalId)
+                        return
+                    }
+
+                    // Stop polling after a few failures to avoid infinite 403 loops.
+                    if (consecutiveFailures >= 3) {
+                        setProcessingError(`Failed to refresh meeting status (HTTP ${response.status}). Please refresh the page.`)
+                        window.clearInterval(intervalId)
+                        return
+                    }
                     return
                 }
                 const data = await response.json()
                 if (cancelled) {
                     return
                 }
+                consecutiveFailures = 0
                 setMeetingData(data)
                 setProcessingError(null)
                 if (data.actionItems && data.actionItems.length > 0) {
@@ -184,15 +218,19 @@ export function useMeetingDetail() {
                 }
             } catch (error) {
                 console.error('error polling meeting status:', error)
-                setProcessingError('Failed to refresh meeting status. Please check your connection.')
+                consecutiveFailures += 1
+                if (consecutiveFailures >= 3) {
+                    setProcessingError('Failed to refresh meeting status. Please check your connection and refresh the page.')
+                    window.clearInterval(intervalId)
+                }
             }
-        }, 5000)
+        }, pollIntervalMs)
 
         return () => {
             cancelled = true
             window.clearInterval(intervalId)
         }
-    }, [isLoaded, meetingId, loading, meetingData])
+    }, [isLoaded, meetingId, loading, meetingData, pollIntervalMs])
 
     useEffect(() => {
         const processTranscript = async () => {
@@ -277,7 +315,7 @@ export function useMeetingDetail() {
         }
 
         return recoverSummary()
-    }, [isLoaded, userChecked, isOwner, meetingData, meetingId, summaryRecoveryAttempted])
+    }, [isLoaded, userChecked, isOwner, meetingData, meetingId, summaryRecoveryAttempted, triggerReprocess])
 
 
     const deleteActionItem = async (id: number) => {

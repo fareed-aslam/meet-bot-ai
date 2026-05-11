@@ -5,12 +5,13 @@ import AttendeeAvatars from './AttendeeAvatars'
 import { format } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import { motion } from 'framer-motion'
+import { DEMO_PAST_MEETINGS } from '@/lib/demoMeetings'
 
 interface PastMeetingsProps {
     pastMeetings: PastMeeting[]
     pastLoading: boolean
     onMeetingClick: (id: string) => void
-    getAttendeeList: (attendees: any) => string[]
+    getAttendeeList: (attendees: unknown) => string[]
     getInitials: (name: string) => string
 }
 
@@ -21,6 +22,27 @@ function PastMeetings({
     getAttendeeList,
     getInitials
 }: PastMeetingsProps) {
+
+    const toTime = (value: unknown) => {
+        if (value instanceof Date) {
+            return value.getTime()
+        }
+        const time = new Date(String(value)).getTime()
+        return Number.isFinite(time) ? time : 0
+    }
+
+    const meetingsToRender: PastMeeting[] = (() => {
+        const base = [...pastMeetings]
+
+        const existing = new Set(base.map((m) => m.id))
+        for (const demo of DEMO_PAST_MEETINGS) {
+            if (!existing.has(demo.id)) {
+                base.push(demo)
+            }
+        }
+
+        return base.sort((a, b) => toTime((b as unknown as { endTime?: unknown }).endTime) - toTime((a as unknown as { endTime?: unknown }).endTime))
+    })()
 
     if (pastLoading) {
         return (
@@ -52,7 +74,7 @@ function PastMeetings({
         )
     }
 
-    if (pastMeetings.length === 0) {
+    if (meetingsToRender.length === 0) {
         return (
             <div className='bg-card rounded-lg p-8 text-center border border-border'>
                 <Video className='h-12 w-12 mx-auto text-muted-foreground mb-4' />
@@ -64,7 +86,7 @@ function PastMeetings({
 
     return (
         <div className='space-y-4'>
-            {pastMeetings.map((meeting) => (
+            {meetingsToRender.map((meeting) => (
                 <motion.div
                     key={meeting.id}
                     className='bg-card rounded-lg p-4 border border-border hover:shadow-md transition-shadow cursor-pointer'
