@@ -1,5 +1,7 @@
 import OpenAI from 'openai'
 
+import { requireEnv } from '@/lib/env'
+
 type Vector = number[]
 
 function normalizeText(text: string) {
@@ -35,13 +37,15 @@ function getAiClient() {
     const provider = (process.env.MEETBOT_AI_PROVIDER || 'groq').toLowerCase()
 
     if (provider === 'openai') {
+        const { OPENAI_API_KEY } = requireEnv(['OPENAI_API_KEY'] as const)
         return new OpenAI({
-            apiKey: process.env.OPENAI_API_KEY!
+            apiKey: OPENAI_API_KEY
         })
     }
 
+    const { GROQ_API_KEY } = requireEnv(['GROQ_API_KEY'] as const)
     return new OpenAI({
-        apiKey: process.env.GROQ_API_KEY!,
+        apiKey: GROQ_API_KEY,
         baseURL: 'https://api.groq.com/openai/v1'
     })
 }

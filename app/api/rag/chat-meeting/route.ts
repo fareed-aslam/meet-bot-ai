@@ -1,4 +1,5 @@
 import { chatWithMeeting } from "@/lib/rag";
+import { MissingEnvError } from "@/lib/env";
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -10,6 +11,18 @@ type UpstreamError = {
 }
 
 function toUpstreamErrorResponse(error: unknown) {
+    if (error instanceof MissingEnvError) {
+        return {
+            status: 500,
+            body: {
+                error: 'server_misconfigured',
+                missing: error.missing,
+                answer:
+                    'Server configuration is missing required environment variables. Please update Vercel project env vars and redeploy.',
+            },
+        }
+    }
+
     const err = error as UpstreamError
     const status: number | undefined = err?.status ?? err?.response?.status
     const code: string | undefined = err?.code ?? err?.error?.code
@@ -71,7 +84,11 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json(response)
     } catch (error) {
-        console.error('Error in chat:', error)
+        console.error('Error in chat-meeting:', {
+            name: (error as any)?.name,
+            message: (error as any)?.message,
+            stack: (error as any)?.stack,
+        })
         const mapped = toUpstreamErrorResponse(error)
         return NextResponse.json(mapped.body, { status: mapped.status })
     }

@@ -200,7 +200,7 @@ export function useMeetingDetail() {
     }, [meetingId, userId, isLoaded, userChecked])
 
     useEffect(() => {
-        const recoverSummary = async () => {
+        const recoverSummary = () => {
             if (!isLoaded || !userChecked || !isOwner || summaryRecoveryAttempted || !meetingData) {
                 return
             }
@@ -251,10 +251,7 @@ export function useMeetingDetail() {
             return () => window.clearTimeout(timeoutId)
         }
 
-        const cleanup = recoverSummary()
-        return () => {
-            if (typeof cleanup === 'function') cleanup()
-        }
+        return recoverSummary()
     }, [isLoaded, userChecked, isOwner, meetingData, meetingId, summaryRecoveryAttempted])
 
 
