@@ -14,6 +14,11 @@ export async function DELETE(
         }
 
         const { meetingId, itemId } = await params
+
+        if (meetingId.startsWith('demo-meeting-')) {
+            return NextResponse.json({ success: true })
+        }
+
         const itemIdNumber = parseInt(itemId)
 
         const meeting = await prisma.meeting.findFirst({

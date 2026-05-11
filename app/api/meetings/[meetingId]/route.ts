@@ -14,7 +14,7 @@ type ActionItem = {
     text: string
 }
 
-const getDemoMeetingDetail = (meetingId: string) => {
+const getDemoMeetingDetail = (meetingId: string, clerkUserId: string | null) => {
     if (!meetingId.startsWith('demo-meeting-')) {
         return null
     }
@@ -38,6 +38,8 @@ const getDemoMeetingDetail = (meetingId: string) => {
         return null
     }
 
+    const authedUserId = clerkUserId || 'demo-user'
+
     return {
         id: meetingId,
         title: titles[match.idx]?.title ?? 'Demo Meeting',
@@ -56,14 +58,14 @@ const getDemoMeetingDetail = (meetingId: string) => {
         emailSent: true,
         emailSentAt: end.toISOString(),
         ragProcessed: true,
-        userId: 'demo-user',
+        userId: authedUserId,
         user: {
-            id: 'demo-user',
+            id: authedUserId,
             name: 'Demo User',
             email: 'demo@example.com',
-            clerkId: 'demo-user'
+            clerkId: authedUserId
         },
-        isOwner: false
+        isOwner: Boolean(clerkUserId)
     }
 }
 
@@ -93,7 +95,7 @@ export async function GET(
         })
 
         if (!meeting) {
-            const demo = getDemoMeetingDetail(meetingId)
+            const demo = getDemoMeetingDetail(meetingId, clerkUserId)
             if (demo) {
                 return NextResponse.json(demo, {
                     headers: {

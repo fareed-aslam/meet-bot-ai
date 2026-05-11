@@ -16,6 +16,14 @@ export async function POST(
 
         const { text } = await request.json()
         const { meetingId } = await params
+
+        if (meetingId.startsWith('demo-meeting-')) {
+            return NextResponse.json({
+                id: Date.now(),
+                text: String(text ?? '').trim(),
+            })
+        }
+
         const meeting = await prisma.meeting.findFirst({
             where: {
                 id: meetingId,

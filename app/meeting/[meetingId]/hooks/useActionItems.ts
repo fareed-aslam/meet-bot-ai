@@ -23,12 +23,25 @@ export function useActionItems(meetingId: string) {
     const [newItemText, setNewItemText] = useState('')
 
     useEffect(() => {
-        if (userId) {
-            fetchIntegrations()
-        } else {
+        const isDemoMeeting = meetingId.startsWith('demo-meeting-')
+
+        if (!userId) {
             setIntegrationsLoaded(true)
+            return
         }
-    }, [userId])
+
+        if (isDemoMeeting) {
+            setIntegrations([
+                { platform: 'trello', connected: true, name: 'Trello', logo: '/trello.png' },
+                { platform: 'jira', connected: true, name: 'Jira', logo: '/jira.png' },
+                { platform: 'asana', connected: true, name: 'Asana', logo: '/asana.png' },
+            ])
+            setIntegrationsLoaded(true)
+            return
+        }
+
+        fetchIntegrations()
+    }, [userId, meetingId])
 
     const fetchIntegrations = async () => {
         try {

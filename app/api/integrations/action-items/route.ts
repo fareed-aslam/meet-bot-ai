@@ -15,6 +15,16 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
     }
 
+    if (typeof meetingId === 'string' && meetingId.startsWith('demo-meeting-')) {
+        return NextResponse.json({
+            success: true,
+            demo: true,
+            platform,
+            meetingId,
+            actionItem,
+        })
+    }
+
     let integration = await prisma.userIntegration.findUnique({
         where: {
             userId_platform: {

@@ -327,8 +327,23 @@ export function useMeetingDetail() {
 
     }
 
-    const addActionItem = async () => {
+    const addActionItem = async (text?: string) => {
         if (!isOwner) {
+            return
+        }
+
+        if (meetingId.startsWith('demo-meeting-')) {
+            const trimmed = String(text ?? '').trim()
+            if (!trimmed) {
+                return
+            }
+
+            setLocalActionItems(prev => {
+                const nextId = prev.length > 0
+                    ? Math.max(...prev.map(item => item.id)) + 1
+                    : 1
+                return [...prev, { id: nextId, text: trimmed }]
+            })
             return
         }
         try {

@@ -26,6 +26,8 @@ function MeetingHeader({
     const [isDeleting, setIsDeleting] = useState(false)
     const router = useRouter()
 
+    const isDemoMeeting = Boolean(meetingId?.startsWith('demo-meeting-'))
+
     const handlePostToSlack = async () => {
         if (!meetingId) {
             return
@@ -138,19 +140,21 @@ function MeetingHeader({
                 </div>
             ) : isOwner ? (
                 <div className='flex gap-3'>
-                    <Button
-                        onClick={handlePostToSlack}
-                        disabled={isPosting || !meetingId}
-                        variant="outline"
-                        className='border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white cursor-pointer disabled:cursor-not-allowed'
-                    >
-                        <img
-                            src="/slack.png"
-                            alt="Slack"
-                            className='w-4 h-4 mr-2'
-                        />
-                        {isPosting ? 'Posting...' : 'Post to Slack'}
-                    </Button>
+                    {!isDemoMeeting && (
+                        <Button
+                            onClick={handlePostToSlack}
+                            disabled={isPosting || !meetingId}
+                            variant="outline"
+                            className='border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white cursor-pointer disabled:cursor-not-allowed'
+                        >
+                            <img
+                                src="/slack.png"
+                                alt="Slack"
+                                className='w-4 h-4 mr-2'
+                            />
+                            {isPosting ? 'Posting...' : 'Post to Slack'}
+                        </Button>
+                    )}
 
                     <Button
                         onClick={handleShare}
@@ -171,15 +175,17 @@ function MeetingHeader({
 
                     </Button>
 
-                    <Button
-                        onClick={handleDelete}
-                        disabled={isDeleting}
-                        className='flex items-center gap-2 px-4 py-2 rounded-lg bg-destructive text-white hover:bg-destructive/90 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer'
-                    >
-                        <Trash2 className='h-4 w-4' />
-                        {isDeleting ? 'Deleting...' : 'Delete'}
+                    {!isDemoMeeting && (
+                        <Button
+                            onClick={handleDelete}
+                            disabled={isDeleting}
+                            className='flex items-center gap-2 px-4 py-2 rounded-lg bg-destructive text-white hover:bg-destructive/90 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer'
+                        >
+                            <Trash2 className='h-4 w-4' />
+                            {isDeleting ? 'Deleting...' : 'Delete'}
 
-                    </Button>
+                        </Button>
+                    )}
                 </div>
             ) : (
                 <div className='flex items-center gap-2 text-sm text-muted-foreground'>
